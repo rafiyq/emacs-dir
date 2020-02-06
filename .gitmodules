@@ -1,0 +1,3 @@
+[submodule "local/site-lisp/gcmh"]
+	path = local/site-lisp/gcmh
+	url = https://gitlab.com/koral/gcmh.git
