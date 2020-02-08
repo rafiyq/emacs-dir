@@ -1,24 +1,55 @@
-;;; early-init.el -*- lexical-binding: t; -*-
+;; -*- lexical-binding: t -*-
 
-;; Emacs HEAD (27+) introduces early-init.el, which is run before init.el,
-;; before package and UI initialization happens.
+;; This file is loaded before package.el is initialized, and before
+;; the first graphical frame is initialized, by Emacs 27 (but not by
+;; any previous version of Emacs). Trivia: I was the person to
+;; implement support for early-init.el, after a protracted argument
+;; between me and most of the rest of the Emacs mailing list.
+;;
+;; If the early init-file is available, we actually execute our entire
+;; init process within it, by just loading the regular init-file.
+;; (That file takes care of making sure it is only loaded once.)
 
-;; Defer garbage collection further back in the startup process
-(setq gc-cons-threshold most-positive-fixnum)
+;; Load an alternate ~/.emacs.d during regular init.
 
-;; In Emacs 27+, package initialization occurs before `user-init-file' is
-;; loaded, but after `early-init-file'.
-(setq package-enable-at-startup nil)
-(advice-add #'package--ensure-init-file :override #'ignore)
+(defun fix-display-graphic-p (func &optional display)
+  "Fix `display-graphic-p' so it works while loading the early init-file."
+  (if display
+      (funcall func display)
+    ;; `display-graphic-p' lies by returning nil, but
+    ;; `initial-window-system' tells the truth (it is nil only if we
+    ;; are actually in a tty environment).
+    initial-window-system))
 
-;; Disabling UI elements
-(setq tool-bar-mode nil
-      menu-bar-mode nil)
-(when (fboundp 'set-scroll-bar-mode)
-  (set-scroll-bar-mode nil))
+(advice-add #'display-graphic-p :around
+            #'fix-display-graphic-p)
 
-;; Halve startup times with fonts that are larger than the system default
-(setq frame-inhibit-implied-resize t)
+(defun fix-xw-display-color-p (func &optional display)
+  "Fix `xw-display-color-p' so it works while loading the early init-file."
+  (if (or display after-init-time)
+      (funcall func display)
+    ;; Make an educated guess.
+    initial-window-system))
 
-;; Ignore X resources
-(advice-add #'x-apply-session-resources :override #'ignore)
+(advice-add #'xw-display-color-p :around
+            #'fix-xw-display-color-p)
+
+  (defun disable-x-resource-application ()
+    "Disable `x-apply-session-resources'.
+Now, `x-apply-session-resources' normally gets called before
+reading the init-file. However if we do our initialization in the
+early init-file, before that function gets called, then it may
+override some important things like the cursor color. So we just
+disable it, since there's no real reason to respect X
+resources.")
+
+  (advice-add #'x-apply-session-resources :override
+              #'disable-x-resource-application)
+
+;; Load the regular init-file.
+(load
+ (expand-file-name "init.el" user-emacs-directory) nil 'nomessage 'nosuffix)
+
+;; Avoid messing with things more than necessary.
+(advice-remove #'display-graphic-p #'fix-display-graphic-p)
+(advice-remove #'xw-display-color-p #'fix-xw-display-color-p)
