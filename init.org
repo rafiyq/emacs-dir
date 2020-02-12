@@ -1,0 +1,564 @@
+#+TITLE: Emacs init.el Configuration File
+#+PROPERTY: header-args :tangle yes
+* Header
+lexical binding
+#+begin_src emacs-lisp
+  ;;; init.el -*- lexical-binding: t; -*-
+#+end_src
+* Environment
+** Initialization
+*** File name handler
+This is consulted on every =require=, =load= and various path/io functions. 
+to get a minor speed up by nooping this.
+Restore =file-name-handler-alist= later, because it is needed for handling
+encrypted or compressed files, among other things.
+#+begin_src emacs-lisp
+  (defvar initial-file-name-handler-alist file-name-handler-alist)
+
+  (setq file-name-handler-alist nil)
+
+  (defun reset-file-handler-alist-h ()
+    (setq file-name-handler-alist initial-file-name-handler-alist))
+  (add-hook 'emacs-startup-hook #'reset-file-handler-alist-h)
+#+end_src
+*** Built-in utility libraries
+#+begin_src emacs-lisp
+  (require 'cl-lib)
+  (require 'map)
+  (require 'subr-x)
+#+end_src
+*** Minimum startup
+Display the bare minimum at startup.
+The dashboard/empty scratch buffer is good enough.
+#+begin_src emacs-lisp
+  (setq inhibit-startup-message t
+        inhibit-startup-echo-area-message user-login-name
+        inhibit-default-init t
+        initial-major-mode 'fundamental-mode
+        initial-scratch-message nil)
+
+  (fset #'display-startup-echo-area-message #'ignore)
+#+end_src
+
+** Definition
+*** Operating System
+Determine what operating system are emacs on.
+#+begin_src emacs-lisp
+  (defconst is-mac     (eq system-type 'darwin))
+  (defconst is-linux   (eq system-type 'gnu/linux))
+  (defconst is-windows (memq system-type '(cygwin windows-nt ms-dos)))
+#+end_src
+*** Directories
+1) The path to the currently loaded =.emacs.d= directory.
+2) Storage location for system's installation of Emacs.
+3) Directory for non-volatile local storage, files that don't change much, like server binaries, external dependencies or long-term shared data.
+4) Directory for volatile local storage, for files that change often, like cache files
+5) Directory for local installation packages
+#+begin_src emacs-lisp
+  (defconst emacs-dir
+    (eval-when-compile (file-truename user-emacs-directory)))
+
+  (defconst local-dir (concat emacs-dir "local/"))
+  (defconst etc-dir (concat local-dir "etc/"))
+  (defconst cache-dir (concat local-dir "cache/"))
+  (defconst site-lisp-dir (concat local-dir "site-lisp/"))
+#+end_src
+** Package management
+*** develop branch
+Use the develop branch of =straight.el= on Radian's develop branch.
+#+begin_src emacs-lisp
+  (setq straight-repository-branch "develop")
+#+end_src
+*** detect package modifications
+If watchexec and Python are installed, use file watchers to detect
+package modifications. This saves time at startup. Otherwise, use
+the ever-reliable =find(1)=.
+#+begin_src emacs-lisp
+  (if (and (executable-find "watchexec")
+           (executable-find "python3"))
+      (setq straight-check-for-modifications '(watch-files find-when-checking))
+    (setq straight-check-for-modifications
+          '(check-on-save find-when-checking)))
+#+end_src
+*** package recipe
+Clear out recipe overrides (in case of re-init).
+#+begin_src emacs-lisp
+  (setq straight-recipe-overrides nil)
+#+end_src
+*** bootstrap straight.el
+#+begin_src emacs-lisp
+  (defvar bootstrap-version)
+  (let ((bootstrap-file
+         (expand-file-name
+          "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+        (bootstrap-version 5))
+    (unless (file-exists-p bootstrap-file)
+      (with-current-buffer
+          (url-retrieve-synchronously
+           "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
+           'silent 'inhibit-cookies)
+        (goto-char (point-max))
+        (eval-print-last-sexp)))
+    (load bootstrap-file nil 'nomessage))
+#+end_src
+*** configure use-package
+Package =use-package= provides a handy macro by the same name which
+is essentially a wrapper around =with-eval-after-load= with a lot
+of handy syntactic sugar and useful features.
+#+begin_src emacs-lisp
+  (straight-use-package 'use-package)
+#+end_src
+*** use-package by default
+When configuring a feature with =use-package=, also tell
+=straight.el= to install a package of the same name, unless otherwise
+specified using the =:straight= keyword.
+#+begin_src emacs-lisp
+  (setq straight-use-package-by-default t)
+#+end_src
+*** lazy loading
+Tell =use-package= to always load features lazily unless told
+otherwise. It's nicer to have this kind of thing be deterministic:
+if =:demand= is present, the loading is eager; otherwise, the
+loading is lazy. See
+https://github.com/jwiegley/use-package#notes-about-lazy-loading.
+#+begin_src emacs-lisp
+  (setq use-package-always-defer t)
+#+end_src
+*** use-feature
+Like =use-package=, but with =straight-use-package-by-default= disabled.
+NAME and ARGS are as in =use-package=.
+#+begin_src emacs-lisp
+  (defmacro use-feature (name &rest args)
+    (declare (indent defun))
+    `(use-package ,name
+       :straight nil
+       ,@args))
+#+end_src
+*** straight.el configuration
+Feature =straight-x= from package =straight= provides experimental/unstable
+extensions to straight.el which are not yet ready for official inclusion.
+Add an autoload for this extremely useful command.
+#+begin_src emacs-lisp
+  (use-feature straight-x
+    :commands (straight-x-fetch-all))
+#+end_src
+** Minibuffer
+*** recursive-minibuffer
+Allow for minibuffer-ception. Sometimes we need another minibuffer command
+while we're in the minibuffer.
+#+begin_src emacs-lisp
+  (setq enable-recursive-minibuffers t)
+#+end_src
+*** echo-keystrokes
+Show current key-sequence in minibuffer, like vim does. Any feedback after
+typing is better UX than no feedback at all.
+#+begin_src emacs-lisp
+  (setq echo-keystrokes 0.02)
+#+end_src
+*** expand minibuffer
+Expand the minibuffer to fit multi-line text displayed in the echo-area. 
+But don't let the minibuffer grow beyond this size
+#+begin_src emacs-lisp
+  (setq resize-mini-windows 'grow-only
+        max-mini-window-height 0.15)
+#+end_src
+*** simple confirmation
+Typing yes/no is obnoxious when y/n will do
+#+begin_src emacs-lisp
+  (fset #'yes-or-no-p #'y-or-n-p)
+#+end_src
+*** intangible cursor
+Try really hard to keep the cursor from getting stuck in the read-only prompt portion of the minibuffer.
+#+begin_src emacs-lisp
+  (setq minibuffer-prompt-properties '(read-only t intangible t cursor-intangible t face minibuffer-prompt))
+  (add-hook 'minibuffer-setup-hook #'cursor-intangible-mode)
+#+end_src
+*** quit confirmation
+Simpler confirmation prompt when quiting Emacs
+#+begin_src emacs-lisp
+  (setq confirm-kill-emacs #'y-or-n-p)
+#+end_src
+** Mode Line
+*** buffer name
+Make the buffer name unique if more than one buffer have the same name.
+Do not beep or blink
+#+begin_src emacs-lisp
+  (setq uniquify-buffer-name-style 'forward)
+#+end_src
+** Frame and windows
+*** resize pixelwise
+Don't resize windows & frames in steps, it's prohibitive to prevent the user
+from resizing it to exact dimensions, and looks weird.
+#+begin_src emacs-lisp
+  (setq window-resize-pixelwise t
+	frame-resize-pixelwise t)
+#+end_src
+*** fringe border
+The native border "consumes" a pixel of the fringe on righter-most splits,
+`window-divider' does not. Available since Emacs 25.1.
+#+begin_src emacs-lisp
+  (setq window-divider-default-places t
+	window-divider-default-bottom-width 1
+	window-divider-default-right-width 1)
+#+end_src
+*** vertical split
+Favor vertical splits over horizontal ones. Screens are usually wide.
+#+begin_src emacs-lisp
+  (setq split-width-threshold 160
+	split-height-threshold nil)
+#+end_src
+
+*** Fringes
+Reduce the clutter in the fringes; reserve that space for more useful information.
+#+begin_src emacs-lisp
+  (setq indicate-buffer-boundaries nil
+	indicate-empty-lines nil)
+#+end_src
+* Communication
+** Security
+Emacs is a huge security vulnerability, what with all the dependencies it
+pulls in from all corners of the globe. Let's at least try to be more discerning.
+#+begin_src emacs-lisp
+  (setq gnutls-verify-error (getenv "INSECURE")
+	tls-checktrust gnutls-verify-error
+	tls-program '("gnutls-cli --x509cafile %t -p %p %h"
+		      ;; compatibility fallbacks
+		      "gnutls-cli -p %p %h"
+		      "openssl s_client -connect %h:%p -no_ssl2 -no_ssl3 -ign_eof"))
+#+end_src
+Emacs stores authinfo in HOME and in plaintext. This file usually stores 
+usernames, passwords, and other such treasures for the aspiring malicious 
+third party.
+#+begin_src emacs-lisp
+  (setq auth-sources (list (expand-file-name "authinfo.gpg" etc-dir)
+			   "~/.authinfo.gpg"))
+#+end_src
+** gnutls
+Feature =gnutls= provides support for SSL/TLS connections, using the GnuTLS.
+=use-package= does =eval-when-compile= for us normally.
+=gnutls-verify-error= Do not allow insecure TLS connections.
+Bump the required security level for TLS to an acceptably modern value.
+#+begin_src emacs-lisp
+  (with-eval-after-load 'gnutls
+    (eval-when-compile
+      (require 'gnutls))
+    (setq gnutls-verify-error t)
+    (setq gnutls-min-prime-bits 3072))
+#+end_src
+** url-http
+Feature =url-http= is a library for making HTTP requests.
+(with-eval-after-load 'url-http
+  (eval-when-compile
+    (require 'url-http))
+
+  (radian-defadvice radian--no-query-on-http-kill
+      (buffer)
+    :filter-return #'url-http
+    "Disable query-on-exit for all network connections.
+This prevents Emacs shutdown from being interrupted just because
+there is a pending network request."
+    (prog1 buffer
+      (set-process-query-on-exit-flag
+       (get-buffer-process buffer) nil))))
+** Don't ping
+Don't ping things that look like domain names.
+#+begin_src emacs-lisp 
+  (setq ffap-machine-p-known 'reject)
+#+end_src
+* Applications
+* Convenience
+** Line Numbers
+*** linum width
+Explicitly define a width to reduce computation
+#+begin_src emacs-lisp
+  (setq-default display-line-numbers-width 3)
+#+end_src
+*** linum for narrowed regions
+Show absolute line numbers for narrowed regions makes it easier to tell the
+buffer is narrowed, and where you are, exactly.
+#+begin_src emacs-lisp
+  (setq-default display-line-numbers-widen t)
+#+end_src
+*** linum mode
+Enable line numbers in most text-editing modes. 
+avoid =global-display-line-numbers-mode= because there are many special and
+temporary modes where we don't need/want them.
+#+begin_src emacs-lisp
+  (add-hook 'prog-mode-hook #'display-line-numbers-mode)
+#+end_src
+** Whitespace
+#+begin_src emacs-lisp
+  (setq sentence-end-double-space nil
+        delete-trailing-lines nil
+        require-final-newline t
+        tabify-regexp "^\t* [ \t]+")
+#+end_src
+** Word Wrapping
+*** wrapping
+#+begin_src emacs-lisp
+  (setq-default word-wrap t
+                truncate-lines t
+                truncate-partial-width-windows nil
+                fill-column 80)
+#+end_src
+*** text mode
+Favor hard-wrapping in text modes
+#+begin_src emacs-lisp
+  (add-hook 'text-mode-hook #'auto-fill-mode)
+#+end_src
+*** Case-insensitive
+if the first case-sensitive search through the alist fails
+to find a matching major mode, a second case-insensitive search is ignore.
+#+begin_src emacs-lisp
+  (setq auto-mode-case-fold nil)
+#+end_src
+** Scrolling
+*** mouse in terminal
+Enable mouse in terminal Emacs
+#+begin_src emacs-lisp
+  (add-hook 'tty-setup-hook #'xterm-mouse-mode)
+#+end_src
+*** adjust scrolling
+Emacs spends too much effort recentering the screen if you scroll the cursor 
+more than N lines past window edges (where N is the settings of `scroll-conservatively').
+This is especially slow in larger files during large-scale scrolling commands.
+If kept over 100, the window is never automatically recentered.
+Reduce cursor lag by a tiny bit by not auto-adjusting `window-vscroll' for tall lines.
+mouse don't accelerate scrolling except using shift.
+#+begin_src emacs-lisp
+  (setq hscroll-margin 2
+        hscroll-step 1
+        scroll-conservatively 101
+        scroll-margin 0
+        scroll-preserve-screen-position t
+        auto-window-vscroll nil
+        mouse-wheel-scroll-amount '(5 ((shift) . 2))
+        mouse-wheel-progressive-speed nil)
+#+end_src
+*** Mac trackpad
+Sane trackpad/mouse scroll settings in Mac.
+#+begin_src emacs-lisp
+  (when is-mac
+    (setq mac-redisplay-dont-reset-vscroll t
+	  mac-mouse-wheel-smooth-scroll nil))
+#+end_src
+*** rapid scrolling
+More performant rapid scrolling over unfontified regions. May cause brief
+spells of inaccurate fontification immediately after scrolling.
+#+begin_src emacs-lisp 
+  (setq fast-but-imprecise-scrolling t)
+#+end_src
+** Apropos
+If the variable apropos-do-all is non-nil, 
+most apropos commands behave as if they had been given a prefix argument.
+There is one exception: apropos-variable without a prefix argument 
+will always search for all variables, 
+no matter what the value of apropos-do-all is.
+#+begin_src emacs-lisp
+  (setq apropos-do-all t)
+#+end_src
+** Bell
+#+begin_src emacs-lisp
+  (setq ring-bell-function #'ignore
+        visible-bell nil)
+#+end_src
+* Data
+* Development
+** GCMHG
+#+begin_src emacs-lisp
+  (use-package gcmh
+    :straight (:host gitlab :repo "koral/gcmh")
+    :init
+    (gcmh-mode 1))
+#+end_src
+** Log Message
+Maximum number of lines to keep in the message log buffer.
+#+begin_src emacs-lisp
+  (setq message-log-max 8192)
+#+end_src
+** Legacy System
+Disable warnings from legacy advice system. They aren't useful, and we can't
+often do anything about them besides changing packages upstream
+#+begin_src emacs-lisp
+  (setq ad-redefinition-action 'accept)
+#+end_src
+** Delay UI update
+Emacs "updates" its ui more often than it needs to, so we slow it down
+slightly, from 0.5s:
+#+begin_src emacs-lisp
+  (setq idle-update-delay 1)
+#+end_src
+** Optimizations
+*** bidirectional rendering
+Disable bidirectional text rendering for a modest performance boost.
+this renders Emacs unable to detect/display right-to-left languages
+#+begin_src emacs-lisp
+  (setq-default bidi-display-reordering 'left-to-right
+                bidi-paragraph-direction 'left-to-right)
+#+end_src
+*** rendering/line scan
+Reduce rendering/line scan work for Emacs by not rendering cursors or regions
+in non-focused windows.
+#+begin_src emacs-lisp 
+  (setq-default cursor-in-non-selected-windows nil)
+  (setq highlight-nonselected-windows nil)
+#+end_src
+*** resizing emacs frame
+Resizing the Emacs frame can be a terribly expensive part of changing the
+font. By inhibiting this, we halve startup times, particularly when we use
+fonts that are larger than the system default (which would resize the frame).
+#+begin_src emacs-lisp 
+  (setq frame-inhibit-implied-resize t)
+#+end_src
+*** Windows performance
+Performance on Windows is considerably worse than elsewhere, especially if
+WSL is involved.
+1) Reduce the workload when doing file IO
+2) Font compacting can be terribly expensive, especially for rendering icon
+fonts on Windows. Whether it has a noteable affect on Linux and Mac hasn't
+been determined.
+#+begin_src emacs-lisp
+  (when is-windows
+    (setq w32-get-true-file-attributes nil)
+    (setq inhibit-compacting-font-caches t))
+#+end_src
+*** command line options
+Remove command line options that aren't relevant to our current OS; means
+slightly less to process at startup.
+#+begin_src emacs-lisp
+  (unless is-mac   (setq command-line-ns-option-alist nil))
+  (unless is-linux (setq command-line-x-option-alist nil))
+#+end_src
+* Editing
+** UTF-8
+UTF-8 as the default coding system,
+Except for the clipboard on Windows, where its contents could be in an
+encoding that's wider than utf-8, let Emacs/the OS decide what encoding to use.
+#+begin_src emacs-lisp
+  (when (fboundp 'set-charset-priority)
+    (set-charset-priority 'unicode))
+  (prefer-coding-system 'utf-8)
+  (setq locale-coding-system 'utf-8)
+
+  (unless is-windows
+    (setq selection-coding-system 'utf-8))
+#+end_src
+** Indentation
+#+begin_src emacs-lisp
+  (setq-default tab-width 4
+        tab-always-indent t
+        indent-tabs-mode nil)
+#+end_src
+** Clipboard/kill-ring
+*** duplicate
+Eliminate duplicates in the kill ring.
+#+begin_src emacs-lisp
+  (setq kill-do-not-save-duplicates t)
+#+end_src
+*** middle mouse paste
+Middle-click paste at point, not at click
+#+begin_src emacs-lisp
+  (setq mouse-yank-at-point t)
+#+end_src
+* External
+* Faces and UI
+** Theme & font
+Underline looks a bit better when drawn lower
+#+begin_src emacs-lisp
+  (setq x-underline-at-descent-line t)
+#+end_src
+** Theme
+#+begin_src emacs-lisp
+  (straight-use-package 'doom-themes)
+  (use-package emacs-color-theme-solarized
+    :straight (:host github :repo "sellout/emacs-color-theme-solarized")
+    :init
+    (setq solarized-termcolor 256
+      solarized-broken-srgb t)
+    (load-theme 'solarized t)
+    (set-frame-parameter nil 'background-mode 'light)
+    (enable-theme 'solarized))
+#+end_src
+** Title
+#+begin_src emacs-lisp
+  (setq frame-title-format '("%b")
+	icon-title-format frame-title-format)
+#+end_src
+** avoid GUI
+Don't display floating tooltips, display their contents in the echo-area.
+#+begin_src emacs-lisp
+  (setq use-dialog-box nil)
+  (when (bound-and-true-p tooltip-mode)
+    (tooltip-mode -1))
+  (when is-linux
+    (setq x-gtk-use-system-tooltips nil))
+#+end_src
+** Cursor
+1) Don't blink the cursor.
+2) Don't blink the paren matching the one at point.
+3) Don't stretch the cursor to fit wide characters, it is disorienting, especially for tabs.
+#+begin_src emacs-lisp
+  (blink-cursor-mode -1)
+  (setq blink-matching-paren nil
+        visible-cursor nil
+        x-stretch-cursor nil)
+#+end_src
+
+* Files
+** File Operation
+*** symlink
+Resolve symlinks when opening files, so that any operations are conducted
+from the file's true directory (like `find-file').
+#+begin_src emacs-lisp
+  (setq find-file-visit-truename t
+        vc-follow-symlinks t)
+#+end_src
+*** file warning
+Disable the warning "X and Y are the same file". It's fine to ignore this
+warning as it will redirect you to the existing buffer anyway.
+#+begin_src emacs-lisp
+  (setq find-file-suppress-same-file-warnings t)
+#+end_src
+*** delete file to trash
+Delete files to trash on macOS, as an extra layer of precaution against
+accidentally deleting wanted files.
+#+begin_src emacs-lisp
+  (setq delete-by-moving-to-trash is-mac)
+  (setq delete-by-moving-to-trash is-windows)
+#+end_src
+** Back Up
+Don't autosave files or create lock/history/backup files.
+But have a place to store them.
+#+begin_src emacs-lisp
+  (setq auto-save-default nil
+        create-lockfiles nil
+        make-backup-files nil
+        auto-save-list-file-name (concat cache-dir "autosave")
+        backup-directory-alist `(("." . ,(concat cache-dir "backup/"))))
+#+end_src
+** No littering
+Don't litter emacs directory
+#+begin_src emacs-lisp
+  (setq abbrev-file-name             (concat local-dir "abbrev.el")
+	async-byte-compile-log-file  (concat etc-dir "async-bytecomp.log")
+	bookmark-default-file        (concat etc-dir "bookmarks")
+	custom-file                  (concat local-dir "custom.el")
+	custom-theme-directory       (concat local-dir "themes/")
+	desktop-dirname              (concat etc-dir "desktop")
+	desktop-base-file-name       "autosave"
+	desktop-base-lock-name       "autosave-lock"
+	pcache-directory             (concat cache-dir "pcache/")
+	request-storage-directory    (concat cache-dir "request")
+	server-auth-dir              (concat cache-dir "server/")
+	shared-game-score-directory  (concat etc-dir "shared-game-score/")
+	tramp-auto-save-directory    (concat cache-dir "tramp-auto-save/")
+	tramp-backup-directory-alist backup-directory-alist
+	tramp-persistency-file-name  (concat cache-dir "tramp-persistency.el")
+	url-cache-directory          (concat cache-dir "url/")
+	url-configuration-directory  (concat etc-dir "url/")
+	gamegrid-user-score-file-directory (concat etc-dir "games/"))
+#+end_src
+* Help
+* Programming
+* Text
+* Local
