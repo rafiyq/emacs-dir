@@ -4,13 +4,11 @@
 * Background
 Emacs HEAD (27+) introduces early-init.el, which is run before init.el,
 before package.el and the first graphical frame is initialized.
-
 * Header
 #+begin_src emacs-lisp
   ;;; early-init.el -*- lexical-binding: t; -*-
 #+end_src
-
-* Disable garbage collection
+* Garbage collection
 The GC can easily double startup time, so we suppress it at startup
 by turning up gc-cons-threshold and gc-cons-percentage temporarily.
 However, it is important to reset it eventually, to prevent GC freeze
@@ -21,14 +19,14 @@ cause stuttering.
   (defvar init-gc-cons-percentage gc-cons-percentage)
 
   (setq gc-cons-threshold most-positive-fixnum
-	gc-cons-percentage 0.6)
+    gc-cons-percentage 0.6)
 
   (add-hook 'emacs-startup-hook
-	    (lambda ()
-	      (setq init-gc-cons-threshold 
-		    init-gc-cons-percentage)))
+            (lambda ()
+              (setq init-gc-cons-threshold
+                    init-gc-cons-percentage)))
 #+end_src
-* Disable package initialization
+* Package initialization
 Packages are made available before reading the init file
 (but after reading the early init file).
 we must prevent Emacs from doing it early!
@@ -36,16 +34,13 @@ we must prevent Emacs from doing it early!
   (setq package-enable-at-startup nil)
   (advice-add #'package--ensure-init-file :override #'ignore)
 #+end_src
-
-* Disable GUI
+* GUI
 #+begin_src emacs-lisp
-  (setq tool-bar-mode nil
-	menu-bar-mode nil)
-  (when (fboundp 'set-scroll-bar-mode)
-    (set-scroll-bar-mode nil))
+  (push '(menu-bar-lines . 0) default-frame-alist)
+  (push '(tool-bar-lines . 0) default-frame-alist)
+  (push '(vertical-scroll-bars) default-frame-alist)
 #+end_src
-
-* Disable resizing the Emacs frame
+* Resizing the Emacs frame
 Whether frames should be resized implicitly.
 If this option is nil, setting font, menu bar, tool bar, tab bar, internal
 borders, fringes or scroll bars of a specific frame may resize the frame
@@ -54,7 +49,6 @@ this option is t, no such resizing is done.
 #+begin_src emacs-lisp
   (setq frame-inhibit-implied-resize t)
 #+end_src
-
 * Ignore X resources
 its settings would be redundant with the other settingsin this file and 
 can conflict with later config (particularly where the cursor color is concerned).

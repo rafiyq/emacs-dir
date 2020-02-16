@@ -1,13 +1,13 @@
 #+TITLE: Emacs init.el Configuration File
 #+PROPERTY: header-args :tangle yes
-* Header
+
+* Initialization
+** Header
 lexical binding
 #+begin_src emacs-lisp
   ;;; init.el -*- lexical-binding: t; -*-
 #+end_src
-* Environment
-** Initialization
-*** File name handler
+** File name handler
 This is consulted on every =require=, =load= and various path/io functions. 
 to get a minor speed up by nooping this.
 Restore =file-name-handler-alist= later, because it is needed for handling
@@ -21,25 +21,6 @@ encrypted or compressed files, among other things.
     (setq file-name-handler-alist initial-file-name-handler-alist))
   (add-hook 'emacs-startup-hook #'reset-file-handler-alist-h)
 #+end_src
-*** Built-in utility libraries
-#+begin_src emacs-lisp
-  (require 'cl-lib)
-  (require 'map)
-  (require 'subr-x)
-#+end_src
-*** Minimum startup
-Display the bare minimum at startup.
-The dashboard/empty scratch buffer is good enough.
-#+begin_src emacs-lisp
-  (setq inhibit-startup-message t
-        inhibit-startup-echo-area-message user-login-name
-        inhibit-default-init t
-        initial-major-mode 'fundamental-mode
-        initial-scratch-message nil)
-
-  (fset #'display-startup-echo-area-message #'ignore)
-#+end_src
-
 ** Definition
 *** Operating System
 Determine what operating system are emacs on.
@@ -63,7 +44,27 @@ Determine what operating system are emacs on.
   (defconst cache-dir (concat local-dir "cache/"))
   (defconst site-lisp-dir (concat local-dir "site-lisp/"))
 #+end_src
-** Package management
+*** Exec Path
+#+begin_src emacs-lisp :tangle no
+  (when is-windows
+    (let (
+          (path-list
+           [
+            "C:/Windows/system32"
+            "C:/Windows"
+            "C:/Windows/System32/Wbem"
+            "C:/Windows/System32/WindowsPowerShell/v1.0"
+            "C:/msys64/mingw64/bin"
+            "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38-32/Scripts/"
+            "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38-32/"
+            "C:/emacs-28/bin"
+            "C:/Users/SriWidarti/scoop/shims"
+            ]))
+    
+      (setenv "PATH" (mapconcat 'identity path-list ";"))
+      (setq exec-path (append path-list (list "." exec-directory)))))
+#+end_src
+** Package Management
 *** develop branch
 Use the develop branch of =straight.el= on Radian's develop branch.
 #+begin_src emacs-lisp
@@ -101,7 +102,7 @@ Clear out recipe overrides (in case of re-init).
         (eval-print-last-sexp)))
     (load bootstrap-file nil 'nomessage))
 #+end_src
-*** configure use-package
+*** use-package
 Package =use-package= provides a handy macro by the same name which
 is essentially a wrapper around =with-eval-after-load= with a lot
 of handy syntactic sugar and useful features.
@@ -134,6 +135,12 @@ NAME and ARGS are as in =use-package=.
        :straight nil
        ,@args))
 #+end_src
+*** delight
+Enables you to customise the mode names displayed in the mode line.
+#+begin_src emacs-lisp
+  (use-package delight
+      :demand t)
+#+end_src
 *** straight.el configuration
 Feature =straight-x= from package =straight= provides experimental/unstable
 extensions to straight.el which are not yet ready for official inclusion.
@@ -142,64 +149,19 @@ Add an autoload for this extremely useful command.
   (use-feature straight-x
     :commands (straight-x-fetch-all))
 #+end_src
-** Minibuffer
-*** recursive-minibuffer
-Allow for minibuffer-ception. Sometimes we need another minibuffer command
-while we're in the minibuffer.
+*** Prevent Emacs-provided Org from being loaded
 #+begin_src emacs-lisp
-  (setq enable-recursive-minibuffers t)
+  (straight-use-package
+   '(org :host github :repo "emacs-straight/org-mode" :local-repo "org"))
 #+end_src
-*** echo-keystrokes
-Show current key-sequence in minibuffer, like vim does. Any feedback after
-typing is better UX than no feedback at all.
-#+begin_src emacs-lisp
-  (setq echo-keystrokes 0.02)
-#+end_src
-*** expand minibuffer
-Expand the minibuffer to fit multi-line text displayed in the echo-area. 
-But don't let the minibuffer grow beyond this size
-#+begin_src emacs-lisp
-  (setq resize-mini-windows 'grow-only
-        max-mini-window-height 0.15)
-#+end_src
-*** simple confirmation
-Typing yes/no is obnoxious when y/n will do
-#+begin_src emacs-lisp
-  (fset #'yes-or-no-p #'y-or-n-p)
-#+end_src
-*** intangible cursor
-Try really hard to keep the cursor from getting stuck in the read-only prompt portion of the minibuffer.
-#+begin_src emacs-lisp
-  (setq minibuffer-prompt-properties '(read-only t intangible t cursor-intangible t face minibuffer-prompt))
-  (add-hook 'minibuffer-setup-hook #'cursor-intangible-mode)
-#+end_src
-*** quit confirmation
-Simpler confirmation prompt when quiting Emacs
-#+begin_src emacs-lisp
-  (setq confirm-kill-emacs #'y-or-n-p)
-#+end_src
-** Mode Line
-*** buffer name
-Make the buffer name unique if more than one buffer have the same name.
-Do not beep or blink
-#+begin_src emacs-lisp
-  (setq uniquify-buffer-name-style 'forward)
-#+end_src
-** Frame and windows
+* Environment
+** Frame
 *** resize pixelwise
 Don't resize windows & frames in steps, it's prohibitive to prevent the user
 from resizing it to exact dimensions, and looks weird.
 #+begin_src emacs-lisp
   (setq window-resize-pixelwise t
 	frame-resize-pixelwise t)
-#+end_src
-*** fringe border
-The native border "consumes" a pixel of the fringe on righter-most splits,
-`window-divider' does not. Available since Emacs 25.1.
-#+begin_src emacs-lisp
-  (setq window-divider-default-places t
-	window-divider-default-bottom-width 1
-	window-divider-default-right-width 1)
 #+end_src
 *** vertical split
 Favor vertical splits over horizontal ones. Screens are usually wide.
@@ -212,7 +174,167 @@ Favor vertical splits over horizontal ones. Screens are usually wide.
 Reduce the clutter in the fringes; reserve that space for more useful information.
 #+begin_src emacs-lisp
   (setq indicate-buffer-boundaries nil
-	indicate-empty-lines nil)
+        indicate-empty-lines t)
+#+end_src
+** Windows
+*** Winner
+Feature `winner' provides an undo/redo stack for window
+configurations, with undo and redo being C-c left and C-c right,
+respectively. (Actually "redo" doesn't revert a single undo, but
+rather a whole sequence of them.) For instance, you can use C-x 1
+to focus on a particular window, then return to your previous
+layout with C-c left.
+#+begin_src emacs-lisp
+  (use-feature winner
+    :demand t
+    :config
+    (winner-mode +1))
+#+end_src
+*** Window Divider
+The native border "consumes" a pixel of the fringe on righter-most splits,
+=window-divider= does not.
+#+begin_src emacs-lisp
+  (setq window-divider-default-places t
+        window-divider-default-bottom-width 1
+        window-divider-default-right-width 1)
+  (add-hook 'window-setup-hook #'window-divider-mode)
+#+end_src
+** Mode Line
+*** buffer name
+Make the buffer name unique if more than one buffer have the same name.
+Do not beep or blink
+#+begin_src emacs-lisp
+  (use-feature uniquify
+    :demand t
+    :init
+    (setq uniquify-buffer-name-style 'forward))
+#+end_src
+*** Column number
+Make `mode-line-position' show the column, not just the row.
+#+begin_src emacs-lisp
+  (column-number-mode +1)
+#+end_src
+** Minibuffer
+*** Minibuffer
+Allow for minibuffer-ception. Sometimes we need another minibuffer command
+while we're in the minibuffer.
+Expand the minibuffer to fit multi-line text displayed in the echo-area. 
+But don't let the minibuffer grow beyond this size
+Try really hard to keep the cursor from getting stuck in the read-only prompt portion of the minibuffer.
+#+begin_src emacs-lisp
+  (setq enable-recursive-minibuffers t
+        resize-mini-windows 'grow-only
+        max-mini-window-height 0.15
+        minibuffer-prompt-properties
+        '(read-only t intangible t cursor-intangible t face minibuffer-prompt))
+  (add-hook 'minibuffer-setup-hook #'cursor-intangible-mode)
+#+end_src
+*** SaveHist
+Savehist mode saves your minibuffer histories,
+optionally save other histories and other variables
+(see option =savehist-additional-variables=). 
+for instance save search strings, =search-ring regexp-search-ring=.
+save only specific histories, not all minibuffer histories,
+=savehist-save-minibuffer-history=.
+save only on kill =savehist-autosave-interval nil=.
+#+begin_src emacs-lisp
+  (use-feature savehist
+    :demand t
+    :init
+    (setq savehist-file (concat cache-dir "savehist")
+          savehist-save-minibuffer-history t
+          savehist-autosave-interval nil
+          savehist-additional-variables '(kill-ring search-ring regexp-search-ring))
+    :config
+    (savehist-mode +1))
+#+end_src
+* Faces and UI
+** GUI
+Suppress GUI features.
+#+begin_src emacs-lisp
+  (setq use-file-dialog nil
+        use-dialog-box nil
+        inhibit-splash-screen t
+        initial-scratch-message nil)
+#+end_src
+** Tooltip
+Don't display floating tooltips, display their contents in the echo-area.
+#+begin_src emacs-lisp
+  (use-feature tooltip
+    :init
+    (when (bound-and-true-p tooltip-mode)
+      (tooltip-mode -1))
+    (when is-linux
+      (setq x-gtk-use-system-tooltips nil)))
+#+end_src
+** Font
+=x-underline-at desent-line= Draw the underline at the the descent line
+=underline-minimum-offset 1= between baseline and underline.
+Set the default font and font size. 
+Using =set-face-attribute= does not have an effect.
+Use the same font for fixed-pitch text as the rest of Emacs.
+#+begin_src emacs-lisp
+  (use-feature emacs
+    :init
+    (setq x-underline-at-descent-line t
+          underline-minimum-offset 1)
+
+    (set-face-attribute 'default nil :height 100)
+    (add-to-list 'default-frame-alist `(font . "Fira Mono"))
+    (set-face-attribute 'fixed-pitch nil :family 'unspecified))
+#+end_src
+** Theme
+#+begin_src emacs-lisp
+  (use-package emacs-color-theme-solarized
+    :straight (:host github :repo "sellout/emacs-color-theme-solarized")
+    :init
+    (setq solarized-termcolor 256
+          solarized-broken-srgb t
+          solarized-contrast 'normal)
+
+    (defun solarized-light ()
+        (load-theme 'solarized t)
+        (set-frame-parameter nil 'background-mode 'light)
+        (enable-theme 'solarized))
+
+    (defun solarized-dark ()
+        (load-theme 'solarized t)
+        (set-frame-parameter nil 'background-mode 'dark)
+        (enable-theme 'solarized))
+
+    (defun solarized-switch ()
+        (interactive)
+        (if (string= (frame-parameter nil 'background-mode) 'light)
+            (solarized-dark)
+          (solarized-light)))
+
+    (solarized-light)
+    :bind* (("C-c <f6>" . #'solarized-switch)))
+#+end_src
+** Cursor
+Don't blink the cursor.
+Don't stretch the cursor to fit wide characters.
+#+begin_src emacs-lisp
+  (use-feature emacs
+    :init
+    (setq cursor-type 'box
+          cursor-in-non-selected-windows 'hollow
+          visible-cursor nil
+          x-stretch-cursor nil)
+    :config
+    (blink-cursor-mode -1))
+#+end_src
+** Parenthesis
+Highlight matching parentheses when the point is on them.
+Don't blink the paren matching the one at point.
+#+begin_src emacs-lisp
+  (use-feature paren
+    :init
+    (setq show-paren-style 'parenthesis
+          show-paren-when-point-in-periphery t
+          show-paren-when-point-inside-paren t
+          blink-matching-paren nil)
+    (show-paren-mode 1))
 #+end_src
 * Communication
 ** Security
@@ -266,25 +388,36 @@ Don't ping things that look like domain names.
   (setq ffap-machine-p-known 'reject)
 #+end_src
 * Applications
+** Magit
+Package =magit= provides a full graphical interface for Git within Emacs.
+=C-x g= display information about the current Git repository,
+#+begin_src emacs-lisp
+  (use-package magit
+    :bind (("C-x g" . #'magit-status)
+           ("C-x M-g" . #'magit-dispatch)
+           ("C-c M-g" . #'magit-file-dispatch)))
+#+end_src
 * Convenience
 ** Line Numbers
-*** linum width
 Explicitly define a width to reduce computation
-#+begin_src emacs-lisp
-  (setq-default display-line-numbers-width 3)
-#+end_src
-*** linum for narrowed regions
 Show absolute line numbers for narrowed regions makes it easier to tell the
 buffer is narrowed, and where you are, exactly.
-#+begin_src emacs-lisp
-  (setq-default display-line-numbers-widen t)
-#+end_src
-*** linum mode
 Enable line numbers in most text-editing modes. 
 avoid =global-display-line-numbers-mode= because there are many special and
 temporary modes where we don't need/want them.
 #+begin_src emacs-lisp
+  (setq-default display-line-numbers-width 2
+                display-line-numbers-widen t)
+
   (add-hook 'prog-mode-hook #'display-line-numbers-mode)
+
+  ;; (defun switch-relative-absolute-linum ()
+  ;;   (interactive)
+  ;;   (if (string= (bound-and-true-p display-line-numbers) 'relative)
+  ;;       (display-line-numbers 'relative)
+  ;;     (display-line-numbers 1)))
+
+  ;; (global-set-key (kbd "C-c <f7>") 'switch-relative-absolute-linum)
 #+end_src
 ** Whitespace
 #+begin_src emacs-lisp
@@ -292,6 +425,23 @@ temporary modes where we don't need/want them.
         delete-trailing-lines nil
         require-final-newline t
         tabify-regexp "^\t* [ \t]+")
+#+end_src
+** Windmove
+Feature `windmove' provides keybindings S-left, S-right, S-up, and
+S-down to move between windows. This is much more convenient and
+efficient than using the default binding, C-x o, to cycle through
+all of them in an essentially unpredictable order.
+#+begin_src emacs-lisp
+  (use-feature windmove
+    :demand t
+    :config
+    (windmove-default-keybindings)
+
+    (when (fboundp 'windmove-display-default-keybindings)
+      (windmove-display-default-keybindings))
+
+    (when (fboundp 'windmove-delete-default-keybindings)
+      (windmove-delete-default-keybindings)))
 #+end_src
 ** Word Wrapping
 *** wrapping
@@ -357,17 +507,81 @@ no matter what the value of apropos-do-all is.
 #+begin_src emacs-lisp
   (setq apropos-do-all t)
 #+end_src
-** Bell
+** Feedback
+Make simple title bar.
+Show current key-sequence in minibuffer immediately (<1 second).
+Follow symlinks when opening files, from the file's true directory.
+Disable the warning "same file" and redirect to the existing buffer.
+Turn off the alarm bell, flash the frame instead.
+Enable all disabled commands.
+Confirmation prompt when quiting Emacs.
+Typing y/n rather than yes/no.
 #+begin_src emacs-lisp
-  (setq ring-bell-function #'ignore
-        visible-bell nil)
+  (use-package emacs
+    :init
+    (setq frame-title-format '("%b %& GNU Emacs")
+          echo-keystrokes 1e-6
+          find-file-visit-truename t
+          vc-follow-symlinks t
+          find-file-suppress-same-file-warnings t
+          ring-bell-function #'ignore
+          visible-bell t
+          disabled-command-function nil
+          confirm-kill-emacs #'y-or-n-p)
+    (fset #'yes-or-no-p #'y-or-n-p))
+#+end_src
+** Ibuffer
+Feature =ibuffer= provides a more modern replacement for the =list-buffers= command.
+#+begin_src emacs-lisp
+  (use-feature ibuffer
+    :config
+    (setq ibuffer-expert t
+          ibuffer-use-other-window nil
+          ibuffer-show-empty-filter-groups nil
+          ibuffer-saved-filter-groups
+          '(("Main"
+             ("Directories" (mode . dired-mode))
+             ("Org" (mode . org-mode))
+             ("Programming" (mode . prog-mode))
+             ("Markdown" (mode . markdown-mode))
+             ("Emacs" (or
+                       (name . "^\\*Help\\*$")
+                       (name . "^\\*Custom.*")
+                       (name . "^\\*Org Agenda\\*$")
+                       (name . "^\\*info\\*$")
+                       (name . "^\\*scratch\\*$")
+                       (name . "^\\*Backtrace\\*$")
+                       (name . "^\\*Completion\\*$")
+                       (name . "^\\*straight-process\\*$")
+                       (name . "^\\*Messages\\*$"))))))
+    :hook
+    (ibuffer-mode . hl-line-mode)
+    (ibuffer-mode . (lambda ()
+                      (ibuffer-switch-to-saved-filter-groups "Main")))
+    :bind
+    (([remap list-buffers] . #'ibuffer)))
 #+end_src
 * Data
+** Saveplace
+Feature `saveplace' provides a minor mode for remembering the
+location of point in each file you visit, and returning it there
+when you find the file again.
+#+begin_src emacs-lisp
+  (use-feature saveplace
+    :demand t
+    :init
+    (setq save-place-file (concat cache-dir "saveplace")
+          save-place-limit 100)
+    :config
+    (save-place-mode +1))
+#+end_src
 * Development
-** GCMHG
+** GCMH
 #+begin_src emacs-lisp
   (use-package gcmh
     :straight (:host gitlab :repo "koral/gcmh")
+    :demand t
+    :delight
     :init
     (gcmh-mode 1))
 #+end_src
@@ -432,8 +646,8 @@ slightly less to process at startup.
 * Editing
 ** UTF-8
 UTF-8 as the default coding system,
-Except for the clipboard on Windows, where its contents could be in an
-encoding that's wider than utf-8, let Emacs/the OS decide what encoding to use.
+Except for the clipboard on Windows, where its contents could be in an encoding
+that's wider than utf-8, let Emacs/the OS decide what encoding to use.
 #+begin_src emacs-lisp
   (when (fboundp 'set-charset-priority)
     (set-charset-priority 'unicode))
@@ -443,11 +657,27 @@ encoding that's wider than utf-8, let Emacs/the OS decide what encoding to use.
   (unless is-windows
     (setq selection-coding-system 'utf-8))
 #+end_src
-** Indentation
+** Tabs and Indentation
 #+begin_src emacs-lisp
-  (setq-default tab-width 4
-        tab-always-indent t
-        indent-tabs-mode nil)
+  (use-feature emacs
+    :init
+    (setq-default tab-width 4
+                  tab-always-indent t
+                  indent-tabs-mode nil))
+#+end_src
+** Delete selection
+Feature =delsel= provides an alternative behavior for certain
+actions when you have a selection active. Namely: if you start
+typing when you have something selected, then the selection will be
+deleted; and if you press DEL while you have something selected, it
+will be deleted rather than killed. (Otherwise, in both cases the
+selection is deselected and the normal function of the key is
+performed.)
+#+begin_src emacs-lisp
+  (use-feature delsel
+    :demand t
+    :config
+    (delete-selection-mode +1))
 #+end_src
 ** Clipboard/kill-ring
 *** duplicate
@@ -460,105 +690,171 @@ Middle-click paste at point, not at click
 #+begin_src emacs-lisp
   (setq mouse-yank-at-point t)
 #+end_src
+** Find
+Feature `isearch' provides a basic and fast mechanism for jumping
+forward or backward to occurrences of a given search string.
+Eliminate the 0.25s idle delay for isearch highlighting, as in my
+opinion it usually produces a rather disjointed and distracting UX.
+#+begin_src emacs-lisp
+  (use-feature isearch
+    :config
+    (setq lazy-highlight-initial-delay 0))
+#+end_src
 * External
-* Faces and UI
-** Theme & font
-Underline looks a bit better when drawn lower
-#+begin_src emacs-lisp
-  (setq x-underline-at-descent-line t)
-#+end_src
-** Theme
-#+begin_src emacs-lisp
-  (straight-use-package 'doom-themes)
-  (use-package emacs-color-theme-solarized
-    :straight (:host github :repo "sellout/emacs-color-theme-solarized")
-    :init
-    (setq solarized-termcolor 256
-      solarized-broken-srgb t)
-    (load-theme 'solarized t)
-    (set-frame-parameter nil 'background-mode 'light)
-    (enable-theme 'solarized))
-#+end_src
-** Title
-#+begin_src emacs-lisp
-  (setq frame-title-format '("%b")
-	icon-title-format frame-title-format)
-#+end_src
-** avoid GUI
-Don't display floating tooltips, display their contents in the echo-area.
-#+begin_src emacs-lisp
-  (setq use-dialog-box nil)
-  (when (bound-and-true-p tooltip-mode)
-    (tooltip-mode -1))
-  (when is-linux
-    (setq x-gtk-use-system-tooltips nil))
-#+end_src
-** Cursor
-1) Don't blink the cursor.
-2) Don't blink the paren matching the one at point.
-3) Don't stretch the cursor to fit wide characters, it is disorienting, especially for tabs.
-#+begin_src emacs-lisp
-  (blink-cursor-mode -1)
-  (setq blink-matching-paren nil
-        visible-cursor nil
-        x-stretch-cursor nil)
-#+end_src
-
 * Files
-** File Operation
-*** symlink
-Resolve symlinks when opening files, so that any operations are conducted
-from the file's true directory (like `find-file').
-#+begin_src emacs-lisp
-  (setq find-file-visit-truename t
-        vc-follow-symlinks t)
-#+end_src
-*** file warning
-Disable the warning "X and Y are the same file". It's fine to ignore this
-warning as it will redirect you to the existing buffer anyway.
-#+begin_src emacs-lisp
-  (setq find-file-suppress-same-file-warnings t)
-#+end_src
-*** delete file to trash
-Delete files to trash on macOS, as an extra layer of precaution against
-accidentally deleting wanted files.
-#+begin_src emacs-lisp
-  (setq delete-by-moving-to-trash is-mac)
-  (setq delete-by-moving-to-trash is-windows)
-#+end_src
 ** Back Up
 Don't autosave files or create lock/history/backup files.
 But have a place to store them.
-#+begin_src emacs-lisp
-  (setq auto-save-default nil
-        create-lockfiles nil
-        make-backup-files nil
-        auto-save-list-file-name (concat cache-dir "autosave")
-        backup-directory-alist `(("." . ,(concat cache-dir "backup/"))))
-#+end_src
-** No littering
 Don't litter emacs directory
 #+begin_src emacs-lisp
-  (setq abbrev-file-name             (concat local-dir "abbrev.el")
-	async-byte-compile-log-file  (concat etc-dir "async-bytecomp.log")
-	bookmark-default-file        (concat etc-dir "bookmarks")
-	custom-file                  (concat local-dir "custom.el")
-	custom-theme-directory       (concat local-dir "themes/")
-	desktop-dirname              (concat etc-dir "desktop")
-	desktop-base-file-name       "autosave"
-	desktop-base-lock-name       "autosave-lock"
-	pcache-directory             (concat cache-dir "pcache/")
-	request-storage-directory    (concat cache-dir "request")
-	server-auth-dir              (concat cache-dir "server/")
-	shared-game-score-directory  (concat etc-dir "shared-game-score/")
-	tramp-auto-save-directory    (concat cache-dir "tramp-auto-save/")
-	tramp-backup-directory-alist backup-directory-alist
-	tramp-persistency-file-name  (concat cache-dir "tramp-persistency.el")
-	url-cache-directory          (concat cache-dir "url/")
-	url-configuration-directory  (concat etc-dir "url/")
-	gamegrid-user-score-file-directory (concat etc-dir "games/"))
+  (use-feature emacs
+    :init
+    (setq auto-save-default nil
+          create-lockfiles nil
+          make-backup-files nil
+          auto-save-list-file-name           (concat cache-dir "autosave")
+          backup-directory-alist             `(("." . ,(concat cache-dir "backup/")))
+          abbrev-file-name                   (concat local-dir "abbrev.el")
+          async-byte-compile-log-file        (concat etc-dir "async-bytecomp.log")
+          bookmark-default-file              (concat etc-dir "bookmarks")
+          custom-file                        (concat local-dir "custom.el")
+          custom-theme-directory             (concat local-dir "themes/")
+          desktop-dirname                    (concat etc-dir "desktop")
+          desktop-base-file-name             "autosave"
+          desktop-base-lock-name             "autosave-lock"
+          pcache-directory                   (concat cache-dir "pcache/")
+          request-storage-directory          (concat cache-dir "request")
+          server-auth-dir                    (concat cache-dir "server/")
+          shared-game-score-directory        (concat etc-dir "shared-game-score/")
+          tramp-auto-save-directory          (concat cache-dir "tramp-auto-save/")
+          tramp-backup-directory-alist backup-directory-alist
+          tramp-persistency-file-name        (concat cache-dir "tramp-persistency.el")
+          url-cache-directory                (concat cache-dir "url/")
+          url-configuration-directory        (concat etc-dir "url/")
+          gamegrid-user-score-file-directory (concat etc-dir "games/")))
+#+end_src
+** Auto Revert
+Turn the delay on auto-reloading from 5 seconds down to 1 second.
+We have to do this before turning on `auto-revert-mode' for the
+change to take effect. (Note that if we set this variable using
+`customize-set-variable', all it does is toggle the mode off and
+on again to make the change take effect, so that way is dumb.)
+
+Auto-revert all buffers, not only file-visiting buffers. The
+docstring warns about potential performance problems but this
+should not be an issue since we only revert visible buffers.
+
+Since we automatically revert all visible buffers after one
+second, there's no point in asking the user whether or not they
+want to do it when they find a file. This disables that prompt.
+#+begin_src emacs-lisp
+  (use-feature autorevert
+    :defer 2
+    :delight
+    :config
+    (setq auto-revert-interval 1)
+    (global-auto-revert-mode +1)
+    (setq global-auto-revert-non-file-buffers t)
+    (setq revert-without-query '(".*")))
+#+end_src
+** Recentf
+Recentf is a minor mode that builds a list of recently opened files. 
+This list is is automatically saved across sessions on exiting Emacs 
+you can then access this list through a command or the menu.
+#+begin_src emacs-lisp
+  (use-feature recentf
+    :demand t
+    :init
+    (setq recentf-save-file (concat cache-dir "recentf")
+          recentf-auto-cleanup 'never
+          recentf-max-menu-items 10
+          recentf-max-saved-items 100)
+    :config
+    (recentf-mode 1))
+#+end_src
+** Directory Editor
+*** Dired
+Feature =dired= provides a simplistic filesystem manager in Emacs.
+Automatically revert Dired buffers on revisiting their directory.
+Dired copies/delete directories recursively.
+=always= means to copy/delete recursively without asking.
+=top= means to ask for each directory at top level.
+If there is a Dired buffer displayed in some window,
+see its current directory, instead of this Dired buffer’s
+current directory.
+Details such as file ownership and permissions are hidden
+from view, by default.
+Highlight the current line in Dired.
+#+begin_src emacs-lisp
+  (use-feature dired
+    :config
+    (setq dired-auto-revert-buffer t
+          dired-recursive-copies 'top
+          dired-recursive-deletes 'top
+          delete-by-moving-to-trash t
+          dired-listing-switches "-AFhv --color"
+          dired-dwim-target t)
+    :hook ((dired-mode . dired-hide-details-mode)
+           (dired-mode . hl-line-mode)))
+#+end_src
+*** Dired-aux
+#+begin_src emacs-lisp
+  (use-feature dired-aux
+    :config
+    (setq dired-isearch-filenames 'dwim
+          dired-create-destination-dirs 'ask))
+#+end_src
+*** Wdired
+#+begin_src emacs-lisp
+  (use-feature wdired
+    :after dired
+    :commands wdired-change-to-wdired-mode
+    :config
+    (setq wdired-allow-to-change-permissions t
+          wdired-create-parent-directories t)
+
+    (defun dired-back-to-start-of-files ()
+      (interactive)
+      (backward-char (- (current-column) 2)))
+ 
+    :bind (:map wdired-mode-map
+                ([remap move-beginning-of-line] . #'dired-back-to-start-of-files)))
+#+end_src
+*** Dired-x
+#+begin_src emacs-lisp
+  (use-feature dired-x
+    :after dired
+    :config
+    (when-let (cmd (cond (is-mac "open")
+                         (is-linux "xdg-open")
+                         (is-windows "start")))
+      (setq dired-guess-shell-alist-user
+            `(("\\.\\(?:docx\\|pdf\\|djvu\\|eps\\)\\'" ,cmd)
+              ("\\.\\(?:jpe?g\\|png\\|gif\\|xpm\\)\\'" ,cmd)
+              ("\\.\\(?:xcf\\)\\'" ,cmd)
+              ("\\.csv\\'" ,cmd)
+              ("\\.tex\\'" ,cmd)
+              ("\\.\\(?:mp4\\|mkv\\|avi\\|flv\\|rm\\|rmvb\\|ogv\\)\\(?:\\.part\\)?\\'" ,cmd)
+              ("\\.\\(?:mp3\\|flac\\)\\'" ,cmd)
+              ("\\.html?\\'" ,cmd)
+              ("\\.md\\'" ,cmd)))))
+#+end_src
+** Icomplete
+#+begin_src emacs-lisp
+  (use-feature icomplete
+    :init
+    (fido-mode 1))
 #+end_src
 * Help
 * Programming
 * Text
+** Organization
+*** Indent
+Feature `org-indent' provides an alternative view for Org files in
+which sub-headings are indented.
+#+begin_src emacs-lisp
+  (use-feature org-indent
+    :init
+    (add-hook 'org-mode-hook #'org-indent-mode))
+#+end_src
 * Local
