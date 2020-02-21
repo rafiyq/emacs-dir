@@ -20,13 +20,33 @@
 (defconst cache-dir (concat local-dir "cache/"))
 (defconst site-lisp-dir (concat local-dir "site-lisp/"))
 
+(when is-windows
+  (let (
+        (path-list
+         [
+          "C:/Windows/system32"
+          "C:/Windows"
+          "C:/Windows/System32/Wbem"
+          "C:/Windows/System32/WindowsPowerShell/v1.0"
+          "C:/msys64/mingw64/bin"
+          "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38/Scripts/"
+          "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38/"
+          "C:/emacs-28/bin"
+          "C:/Users/SriWidarti/scoop/shims"
+          ]))
+
+    (setenv "PATH" (mapconcat 'identity path-list ";"))
+    (setq exec-path (append path-list (list "." exec-directory)))))
+
 (setq straight-repository-branch "develop")
 
-(if (and (executable-find "watchexec")
+(if is-windows
+    (setq straight-check-for-modifications 'live)
+  (if (and (executable-find "watchexec")
          (executable-find "python3"))
     (setq straight-check-for-modifications '(watch-files find-when-checking))
   (setq straight-check-for-modifications
-        '(check-on-save find-when-checking)))
+        '(find-at-startup find-when-checking))))
 
 (setq straight-recipe-overrides nil)
 
@@ -111,7 +131,9 @@
 (setq use-file-dialog nil
       use-dialog-box nil
       inhibit-splash-screen t
-      initial-scratch-message nil)
+      initial-scratch-message nil
+      initial-major-mode 'fundamental-mode)
+(fset #'display-startup-echo-area-message #'ignore)
 
 (use-feature tooltip
   :init
@@ -194,6 +216,8 @@
   :bind (("C-x g" . #'magit-status)
          ("C-x M-g" . #'magit-dispatch)
          ("C-c M-g" . #'magit-file-dispatch)))
+
+(use-package ledger-mode)
 
 (setq-default display-line-numbers-width 2
               display-line-numbers-widen t)
@@ -450,7 +474,17 @@
 
 (use-feature icomplete
   :init
-  (fido-mode 1))
+  (fido-mode 1)
+  :config
+   (defun fido-recentf ()
+    (prot/icomplete-show-vertical)
+    (interactive)
+    (let ((files (mapcar 'abbreviate-file-name recentf-list)))
+      (find-file
+       (completing-read "Recent File: " files nil t)
+       )))
+  :bind
+  (([remap find-file-read-only] . #'fido-recentf)))
 
 (use-feature org-indent
   :init

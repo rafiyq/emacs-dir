@@ -45,7 +45,7 @@ Determine what operating system are emacs on.
   (defconst site-lisp-dir (concat local-dir "site-lisp/"))
 #+end_src
 *** Exec Path
-#+begin_src emacs-lisp :tangle no
+#+begin_src emacs-lisp
   (when is-windows
     (let (
           (path-list
@@ -55,8 +55,8 @@ Determine what operating system are emacs on.
             "C:/Windows/System32/Wbem"
             "C:/Windows/System32/WindowsPowerShell/v1.0"
             "C:/msys64/mingw64/bin"
-            "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38-32/Scripts/"
-            "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38-32/"
+            "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38/Scripts/"
+            "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38/"
             "C:/emacs-28/bin"
             "C:/Users/SriWidarti/scoop/shims"
             ]))
@@ -75,11 +75,13 @@ If watchexec and Python are installed, use file watchers to detect
 package modifications. This saves time at startup. Otherwise, use
 the ever-reliable =find(1)=.
 #+begin_src emacs-lisp
-  (if (and (executable-find "watchexec")
+  (if is-windows
+      (setq straight-check-for-modifications 'live)
+    (if (and (executable-find "watchexec")
            (executable-find "python3"))
       (setq straight-check-for-modifications '(watch-files find-when-checking))
     (setq straight-check-for-modifications
-          '(check-on-save find-when-checking)))
+          '(find-at-startup find-when-checking))))
 #+end_src
 *** package recipe
 Clear out recipe overrides (in case of re-init).
@@ -255,7 +257,9 @@ Suppress GUI features.
   (setq use-file-dialog nil
         use-dialog-box nil
         inhibit-splash-screen t
-        initial-scratch-message nil)
+        initial-scratch-message nil
+        initial-major-mode 'fundamental-mode)
+  (fset #'display-startup-echo-area-message #'ignore)
 #+end_src
 ** Tooltip
 Don't display floating tooltips, display their contents in the echo-area.
@@ -396,6 +400,10 @@ Package =magit= provides a full graphical interface for Git within Emacs.
     :bind (("C-x g" . #'magit-status)
            ("C-x M-g" . #'magit-dispatch)
            ("C-c M-g" . #'magit-file-dispatch)))
+#+end_src
+** Ledger
+#+begin_src emacs-lisp
+  (use-package ledger-mode)
 #+end_src
 * Convenience
 ** Line Numbers
@@ -816,7 +824,7 @@ Highlight the current line in Dired.
     (defun dired-back-to-start-of-files ()
       (interactive)
       (backward-char (- (current-column) 2)))
- 
+
     :bind (:map wdired-mode-map
                 ([remap move-beginning-of-line] . #'dired-back-to-start-of-files)))
 #+end_src
@@ -843,7 +851,16 @@ Highlight the current line in Dired.
 #+begin_src emacs-lisp
   (use-feature icomplete
     :init
-    (fido-mode 1))
+    (fido-mode 1)
+    :config
+     (defun fido-recentf ()
+      (interactive)
+      (let ((files (mapcar 'abbreviate-file-name recentf-list)))
+        (find-file
+         (completing-read "Recent File: " files nil t)
+         )))
+    :bind
+    (([remap find-file-read-only] . #'fido-recentf)))
 #+end_src
 * Help
 * Programming
