@@ -1,5 +1,3 @@
-;;; init.el -*- lexical-binding: t; -*-
-
 (defvar initial-file-name-handler-alist file-name-handler-alist)
 
 (setq file-name-handler-alist nil)
@@ -29,10 +27,11 @@
           "C:/Windows/System32/Wbem"
           "C:/Windows/System32/WindowsPowerShell/v1.0"
           "C:/msys64/mingw64/bin"
-          "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38/Scripts/"
-          "C:/Users/SriWidarti/AppData/Local/Programs/Python/Python38/"
+          "C:/Python38/Scripts/"
+          "C:/Python38/"
+          "C:/Program Files/Git/cmd"
           "C:/emacs-28/bin"
-          "C:/Users/SriWidarti/scoop/shims"
+          "C:/ProgramData/chocolatey/bin"
           ]))
 
     (setenv "PATH" (mapconcat 'identity path-list ";"))
@@ -43,10 +42,10 @@
 (if is-windows
     (setq straight-check-for-modifications 'live)
   (if (and (executable-find "watchexec")
-         (executable-find "python3"))
+	 (executable-find "python3"))
     (setq straight-check-for-modifications '(watch-files find-when-checking))
   (setq straight-check-for-modifications
-        '(find-at-startup find-when-checking))))
+	'(find-at-startup find-when-checking))))
 
 (setq straight-recipe-overrides nil)
 
@@ -77,7 +76,8 @@
      ,@args))
 
 (use-package delight
-    :demand t)
+  :straight (:host github :repo "emacs-straight/delight")
+  :demand t)
 
 (use-feature straight-x
   :commands (straight-x-fetch-all))
@@ -86,10 +86,10 @@
  '(org :host github :repo "emacs-straight/org-mode" :local-repo "org"))
 
 (setq window-resize-pixelwise t
-  frame-resize-pixelwise t)
+      frame-resize-pixelwise t)
 
 (setq split-width-threshold 160
-  split-height-threshold nil)
+      split-height-threshold nil)
 
 (setq indicate-buffer-boundaries nil
       indicate-empty-lines t)
@@ -142,14 +142,11 @@
   (when is-linux
     (setq x-gtk-use-system-tooltips nil)))
 
-(use-feature emacs
-  :init
-  (setq x-underline-at-descent-line t
-        underline-minimum-offset 1)
-
-  (set-face-attribute 'default nil :height 100)
-  (add-to-list 'default-frame-alist `(font . "Fira Mono"))
-  (set-face-attribute 'fixed-pitch nil :family 'unspecified))
+(setq x-underline-at-descent-line t
+      underline-minimum-offset 1)
+(set-face-attribute
+ 'default (selected-frame) :font
+   "-*-Consolas-medium-normal-normal-*-14-*-*-*-m-0-iso10646-1")
 
 (use-package emacs-color-theme-solarized
   :straight (:host github :repo "sellout/emacs-color-theme-solarized")
@@ -186,6 +183,11 @@
   :config
   (blink-cursor-mode -1))
 
+(use-package hl-line
+  :init
+  (setq hl-line-sticky-flag nil)
+  (add-hook 'prog-mode-hook #'hl-line-mode))
+
 (use-feature paren
   :init
   (setq show-paren-style 'parenthesis
@@ -195,8 +197,8 @@
   (show-paren-mode 1))
 
 (setq gnutls-verify-error (getenv "INSECURE")
-  tls-checktrust gnutls-verify-error
-  tls-program '("gnutls-cli --x509cafile %t -p %p %h"
+      tls-checktrust gnutls-verify-error
+      tls-program '("gnutls-cli --x509cafile %t -p %p %h"
 		    ;; compatibility fallbacks
 		    "gnutls-cli -p %p %h"
 		    "openssl s_client -connect %h:%p -no_ssl2 -no_ssl3 -ign_eof"))
@@ -264,9 +266,12 @@
       scroll-conservatively 101
       scroll-margin 0
       scroll-preserve-screen-position t
-      auto-window-vscroll nil
-      mouse-wheel-scroll-amount '(5 ((shift) . 2))
-      mouse-wheel-progressive-speed nil)
+      auto-window-vscroll nil)
+
+(use-feature mwheel
+  :init
+  (setq  mouse-wheel-scroll-amount '(1 ((shift) . 5) ((control)))
+         mouse-wheel-progressive-speed nil))
 
 (when is-mac
   (setq mac-redisplay-dont-reset-vscroll t
@@ -300,16 +305,23 @@
            ("Org" (mode . org-mode))
            ("Programming" (mode . prog-mode))
            ("Markdown" (mode . markdown-mode))
+           ("Magit" (or
+                    (mode . magit-blame-mode)
+                    (mode . magit-cherry-mode)
+                    (mode . magit-diff-mode)
+                    (mode . magit-log-mode)
+                    (mode . magit-process-mode)
+                    (mode . magit-status-mode)))
            ("Emacs" (or
-                     (name . "^\\*Help\\*$")
-                     (name . "^\\*Custom.*")
-                     (name . "^\\*Org Agenda\\*$")
-                     (name . "^\\*info\\*$")
-                     (name . "^\\*scratch\\*$")
-                     (name . "^\\*Backtrace\\*$")
-                     (name . "^\\*Completion\\*$")
-                     (name . "^\\*straight-process\\*$")
-                     (name . "^\\*Messages\\*$"))))))
+                    (name . "^\\*Help\\*$")
+                    (name . "^\\*Custom.*")
+                    (name . "^\\*Org Agenda\\*$")
+                    (name . "^\\*info\\*$")
+                    (name . "^\\*scratch\\*$")
+                    (name . "^\\*Backtrace\\*$")
+                    (name . "^\\*Completions\\*$")
+                    (name . "^\\*straight-process\\*$")
+                    (name . "^\\*Messages\\*$"))))))
   :hook
   (ibuffer-mode . hl-line-mode)
   (ibuffer-mode . (lambda ()
@@ -380,6 +392,94 @@
   :config
   (setq lazy-highlight-initial-delay 0))
 
+(use-feature hippie-exp
+  :config
+  (defvar he-search-loc-backward (make-marker))
+  (defvar he-search-loc-forward (make-marker))
+
+  (defun he--closest-in-this-buffer (old beg-function search-function)
+    (let (expansion)
+      (unless old
+        (he-init-string (funcall beg-function) (point))
+        (set-marker he-search-loc-backward he-string-beg)
+        (set-marker he-search-loc-forward he-string-end))
+
+      (if (not (equal he-search-string ""))
+          (save-excursion
+            (save-restriction
+              (if hippie-expand-no-restriction
+                  (widen))
+
+              (let (forward-point
+                    backward-point
+                    forward-distance
+                    backward-distance
+                    forward-expansion
+                    backward-expansion
+                    chosen)
+
+                ;; search backward
+                (goto-char he-search-loc-backward)
+                (setq expansion (funcall search-function he-search-string t))
+
+                (when expansion
+                  (setq backward-expansion expansion)
+                  (setq backward-point (point))
+                  (setq backward-distance (- he-string-beg backward-point)))
+
+                ;; search forward
+                (goto-char he-search-loc-forward)
+                (setq expansion (funcall search-function he-search-string))
+
+                (when expansion
+                  (setq forward-expansion expansion)
+                  (setq forward-point (point))
+                  (setq forward-distance (- forward-point he-string-beg)))
+
+                ;; choose depending on distance
+                (setq chosen (cond
+                              ((and forward-point backward-point)
+                               (if (< forward-distance backward-distance) :forward :backward))
+
+                              (forward-point :forward)
+                              (backward-point :backward)))
+
+                (when (equal chosen :forward)
+                  (setq expansion forward-expansion)
+                  (set-marker he-search-loc-forward forward-point))
+
+                (when (equal chosen :backward)
+                  (setq expansion backward-expansion)
+                  (set-marker he-search-loc-backward backward-point))
+
+                ))))
+
+      (if (not expansion)
+          (progn
+            (if old (he-reset-string))
+            nil)
+        (progn
+          (he-substitute-string expansion t)
+          t))))
+
+  (defun try-expand-dabbrev-closest-first (old)
+    "Try to expand word \"dynamically\", searching the current buffer.
+  The argument OLD has to be nil the first call of this function, and t
+  for subsequent calls (for further possible expansions of the same
+  string).  It returns t if a new expansion is found, nil otherwise."
+    (he--closest-in-this-buffer old #'he-dabbrev-beg #'he-dabbrev-search))
+
+  (setq hippie-expand-try-functions-list
+        '(try-expand-dabbrev-closest-first
+          try-complete-file-name
+          try-expand-dabbrev-all-buffers
+          try-expand-dabbrev-from-kill
+          try-expand-all-abbrevs
+          try-complete-lisp-symbol-partially
+          try-complete-lisp-symbol))
+  :bind
+  (([remap dabbrev-expand] . #'hippie-expand)))
+
 (use-feature emacs
   :init
   (setq auto-save-default nil
@@ -431,7 +531,7 @@
         dired-recursive-copies 'top
         dired-recursive-deletes 'top
         delete-by-moving-to-trash t
-        dired-listing-switches "-AFhv --color"
+        dired-listing-switches "-alh"
         dired-dwim-target t)
   :hook ((dired-mode . dired-hide-details-mode)
          (dired-mode . hl-line-mode)))
@@ -477,7 +577,6 @@
   (fido-mode 1)
   :config
    (defun fido-recentf ()
-    (prot/icomplete-show-vertical)
     (interactive)
     (let ((files (mapcar 'abbreviate-file-name recentf-list)))
       (find-file
