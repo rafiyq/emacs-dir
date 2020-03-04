@@ -1,3 +1,5 @@
+;; init.el -*- lexical-binding: t; -*-
+
 (defvar initial-file-name-handler-alist file-name-handler-alist)
 
 (setq file-name-handler-alist nil)
@@ -86,10 +88,10 @@
  '(org :host github :repo "emacs-straight/org-mode" :local-repo "org"))
 
 (setq window-resize-pixelwise t
-      frame-resize-pixelwise t)
+  frame-resize-pixelwise t)
 
 (setq split-width-threshold 160
-      split-height-threshold nil)
+  split-height-threshold nil)
 
 (setq indicate-buffer-boundaries nil
       indicate-empty-lines t)
@@ -197,8 +199,8 @@
   (show-paren-mode 1))
 
 (setq gnutls-verify-error (getenv "INSECURE")
-      tls-checktrust gnutls-verify-error
-      tls-program '("gnutls-cli --x509cafile %t -p %p %h"
+  tls-checktrust gnutls-verify-error
+  tls-program '("gnutls-cli --x509cafile %t -p %p %h"
 		    ;; compatibility fallbacks
 		    "gnutls-cli -p %p %h"
 		    "openssl s_client -connect %h:%p -no_ssl2 -no_ssl3 -ign_eof"))
@@ -213,6 +215,12 @@
   (setq gnutls-min-prime-bits 3072))
 
 (setq ffap-machine-p-known 'reject)
+
+(use-package transient
+  :config
+  (setq transient-levels-file  (concat etc-dir "transient/levels")
+        transient-values-file  (concat etc-dir "transient/values")
+        transient-history-file (concat etc-dir "transient/history")))
 
 (use-package magit
   :bind (("C-x g" . #'magit-status)
@@ -585,6 +593,9 @@
   :bind
   (([remap find-file-read-only] . #'fido-recentf)))
 
-(use-feature org-indent
+(use-feature org
   :init
-  (add-hook 'org-mode-hook #'org-indent-mode))
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((ledger . t) ;this is the important one for this tutorial
+     )))

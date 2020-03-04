@@ -4,8 +4,8 @@
 * Initialization
 ** Header
 lexical binding
-#+begi n_src emacs-lisp
-  ;;; init.el -*- lexical-binding: t; -*-
+#+begin_src emacs-lisp
+  ;; init.el -*- lexical-binding: t; -*-
 #+end_src
 ** File name handler
 This is consulted on every =require=, =load= and various path/io functions. 
@@ -397,6 +397,14 @@ Don't ping things that look like domain names.
   (setq ffap-machine-p-known 'reject)
 #+end_src
 * Applications
+** Transient
+#+begin_src emacs-lisp
+  (use-package transient
+    :config
+    (setq transient-levels-file  (concat etc-dir "transient/levels")
+          transient-values-file  (concat etc-dir "transient/values")
+          transient-history-file (concat etc-dir "transient/history")))
+#+end_src
 ** Magit
 Package =magit= provides a full graphical interface for Git within Emacs.
 =C-x g= display information about the current Git repository,
@@ -986,12 +994,13 @@ Highlight the current line in Dired.
 * Programming
 * Text
 ** Organization
-*** Indent
-Feature `org-indent' provides an alternative view for Org files in
-which sub-headings are indented.
+*** Org
 #+begin_src emacs-lisp
-  (use-feature org-indent
+  (use-feature org
     :init
-    (add-hook 'org-mode-hook #'org-indent-mode))
+    (org-babel-do-load-languages
+     'org-babel-load-languages
+     '((ledger . t) ;this is the important one for this tutorial
+       )))
 #+end_src
 * Local
